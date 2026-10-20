@@ -1,7 +1,11 @@
 # Shardot — Soul Shards & Combo Points
 
-Versión 0.5.1. Destino: WoW Forever 1.60.1, Interface 16001.
+Versión 0.5.2. Destino: WoW Forever 1.60.1, Interface 16001.
 Implementado íntegramente en Lua, sin dependencias.
+
+Incluye `Media/ShardotIcon.tga`, el icono propio configurado en el manifiesto para
+la lista de addons del juego. El panel de apoyo conserva su tamaño compacto con
+un fondo tenue y acentos violetas para mejorar su visibilidad.
 
 ## Instalación
 
