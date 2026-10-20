@@ -4,7 +4,7 @@
 ## Notes-esES: Contador ligero de fragmentos de alma y puntos de combo.
 ## Notes-esMX: Contador ligero de fragmentos de alma y puntos de combo.
 ## Author: Shardot
-## Version: 0.5.2
+## Version: 0.5.3
 ## IconTexture: Interface\AddOns\Shardot\Media\ShardotIcon.tga
 ## SavedVariablesPerCharacter: ShardotDB
 
