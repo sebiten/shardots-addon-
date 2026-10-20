@@ -1,6 +1,6 @@
 # Shardot — Soul Shards & Combo Points
 
-Versión 0.5.0. Destino: WoW Forever 1.60.1, Interface 16001.
+Versión 0.5.1. Destino: WoW Forever 1.60.1, Interface 16001.
 Implementado íntegramente en Lua, sin dependencias.
 
 ## Instalación
@@ -56,13 +56,13 @@ Tamaño, separación, opacidad y vista previa siguen disponibles en `/shardot`.
 Se puede hacer clic en toda la fila, incluida su etiqueta. Incluye tres pestañas:
 
 - **General:** visibilidad, posición, escala, opacidad y prueba de cero a cinco combos.
-  Al final aparece una tarjeta azul para apoyar el desarrollo por PayPal.
+  Al final aparece una fila discreta para apoyar el desarrollo por PayPal.
 - **Diseño:** forma, ancho, alto, separación, borde y reflejo; para brujo, icono,
   barra, objetivo y fuente del contador.
 - **Colores:** muestras de color y campos hexadecimales para relleno, vacío y borde;
   para brujo, barra y texto independientes. Aplicar con el botón o Enter.
 
-En la tarjeta **Apoyar el desarrollo / Support development**, seleccionar el enlace,
+En **Apoyar el desarrollo / Support development**, pulsar **PayPal** para mostrar y seleccionar el enlace,
 copiarlo con Ctrl+C (Cmd+C en Mac) y abrirlo en el navegador:
 https://www.paypal.com/paypalme/sebiten
 
