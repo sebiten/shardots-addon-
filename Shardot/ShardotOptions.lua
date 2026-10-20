@@ -180,50 +180,96 @@ function namespace.OpenOptions(api)
             end
         end
     end
-    local function Color(parent, key, caption, x, y)
-        Text(parent, caption, x, y)
-        local swatch = CreateFrame("Frame", nil, parent)
-        swatch:SetSize(26, 26)
-        swatch:SetPoint("TOPLEFT", x, y - 25)
-        local fill = Rect(swatch, 1, 1, 1)
-        local input = CreateFrame("EditBox", nil, parent)
-        input:SetPoint("TOPLEFT", x + 38, y - 24)
-        input:SetSize(125, 30)
-        input:SetFont(STANDARD_TEXT_FONT, 13, "")
-        input:SetTextInsets(10, 4, 0, 0)
-        input:SetAutoFocus(false)
-        input:SetMaxLetters(6)
-        Rect(input, 0.10, 0.12, 0.14)
-        inputs[#inputs + 1] = input
-        input:SetScript("OnEscapePressed", function(self) self:ClearFocus(); panel:Refresh() end)
-        local function Apply()
-            local hex = input:GetText():upper()
-            if not hex:match("^%x%x%x%x%x%x$") then
-                input:SetTextColor(1, 0.3, 0.2)
-                return
-            end
-            local db = api.db()
+
+local function Color(parent, key, caption, x, y)
+    Text(parent, caption, x, y)
+
+    local swatch = CreateFrame("Button", nil, parent)
+    swatch:SetSize(30, 30)
+    swatch:SetPoint("TOPLEFT", x, y - 25)
+
+    Rect(swatch, 0.35, 0.38, 0.45)
+
+    local fill = swatch:CreateTexture(nil, "ARTWORK")
+    fill:SetPoint("TOPLEFT", 3, -3)
+    fill:SetPoint("BOTTOMRIGHT", -3, 3)
+
+    local function GetColor()
+        local value = api.db()[key]
+
+        if key == "color" then
+            local c = value or (api.warlock
+                and {0.68, 0.42, 1}
+                or {1, 0.72, 0.2})
+
+            return c[1], c[2], c[3]
+        end
+
+        return RGB(value or "FFFFFF")
+    end
+
+    local function OpenPicker()
+        local r, g, b = GetColor()
+
+        local db = api.db()
+        local previousValue = db[key]
+        local previousGradient = db.comboGradient
+
+        local function UpdateColor()
+            local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+            local settings = api.db()
+
             if key == "color" then
-                db.color = {RGB(hex)}
-                if not api.warlock then db.comboGradient = false end
-            else db[key] = hex end
-            input:ClearFocus()
+                settings.color = {nr, ng, nb}
+
+                if not api.warlock then
+                    settings.comboGradient = false
+                end
+            else
+                settings[key] = string.format(
+                    "%02X%02X%02X",
+                    math.floor(nr * 255 + 0.5),
+                    math.floor(ng * 255 + 0.5),
+                    math.floor(nb * 255 + 0.5)
+                )
+            end
+
             Commit()
         end
-        input:SetScript("OnEnterPressed", Apply)
-        Button(parent, L("Aplicar", "Apply"), x + 178, y - 24, 92, Apply)
-        controls[#controls + 1] = function()
-            local hex = api.db()[key]
-            if key == "color" then
-                local c = hex or (api.warlock and {0.68, 0.42, 1} or {1, 0.72, 0.2})
-                hex = string.format("%02X%02X%02X", math.floor(c[1] * 255 + 0.5),
-                    math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
-            end
-            if not input:HasFocus() then input:SetText(hex); input:SetTextColor(0.9, 0.93, 0.95) end
-            local r, g, b = RGB(hex)
-            fill:SetColorTexture(r, g, b, 1)
-        end
+
+        ColorPickerFrame:SetupColorPickerAndShow({
+            r = r,
+            g = g,
+            b = b,
+            hasOpacity = false,
+            swatchFunc = UpdateColor,
+
+            cancelFunc = function()
+                local settings = api.db()
+                settings[key] = previousValue
+                settings.comboGradient = previousGradient
+                Commit()
+            end,
+        })
     end
+
+    swatch:SetScript("OnClick", OpenPicker)
+
+    Button(
+        parent,
+        L("Elegir color", "Choose color"),
+        x + 42,
+        y - 24,
+        228,
+        OpenPicker
+    )
+
+    controls[#controls + 1] = function()
+        local r, g, b = GetColor()
+        fill:SetColorTexture(r, g, b, 1)
+    end
+end
+
     for i, name in ipairs({L("General", "General"), L("Diseño", "Design"), L("Colores", "Colors")}) do
         local index = i
         local page = CreateFrame("Frame", nil, panel)
@@ -277,7 +323,6 @@ function namespace.OpenOptions(api)
         Check(colors, "comboGradient", L("Dorado → rojo por combos", "Gold → red with combos"), 310, -156)
         Text(colors, L("Aplicar un color de relleno desactiva la progresión a rojo.", "Applying a fill color disables the red progression."), 0, -232, 12, true)
     end
-    Text(colors, L("Usá seis dígitos hexadecimales; por ejemplo FFB733.", "Use six hex digits; for example FFB733."), 0, -278, 12, true)
     Button(colors, L("Colores originales", "Default colors"), 0, -317, 270, function()
         local db = api.db()
         db.color, db.emptyColor, db.borderColor, db.shardTextColor = nil, "252B2B", "111617", "FFFFFF"
