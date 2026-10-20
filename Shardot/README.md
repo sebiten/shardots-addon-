@@ -1,6 +1,6 @@
 # Shardot — Soul Shards & Combo Points
 
-Versión 0.5.4. Destino: WoW Forever 1.60.1, Interface 16001.
+Versión 0.6.0. Destino: WoW Forever 1.60.1, Interface 16001.
 Implementado íntegramente en Lua, sin dependencias.
 
 Incluye `Media/ShardotIcon.tga`, el icono propio configurado en el manifiesto para
@@ -26,6 +26,11 @@ los ajustes anteriores no se importan automáticamente.
 - Druida: puntos de combo en forma felina; se oculta en otras formas.
 - Otras clases: no muestra recursos. `/shardot test` permite previsualizar el diseño.
 
+Rogue y druida pueden mostrar cinco segmentos sobre la nameplate del objetivo actual.
+La pestaña **Nameplate** permite activarlos, ubicarlos arriba o abajo y ajustar sus
+offsets X/Y y escala. Reutilizan la forma, separación, borde y colores del indicador
+principal. Requiere nameplates activadas y un objetivo visible.
+
 Shards: contador numérico y barra horizontal opcional, o icono del objeto con el
 contador superpuesto en la esquina inferior derecha. Combos: cinco segmentos que
 se rellenan individualmente, con número opcional. La barra de shards representa un objetivo
@@ -36,9 +41,10 @@ fijos para rogue y feral. No incluye mana, energía, ira, cooldowns ni alertas.
 ## Personalización
 
 Para el contador de shards, `/shardot` incluye **Fuente del contador** (clic para alternar
-entre predeterminada, Arial, Morpheus y Skurri) y un selector visual para el color del número.
-El color es independiente de la barra; por defecto es blanco. Se aplica tanto sobre el icono
-como al contador sin icono. Las fuentes son del cliente, sin descargas ni librerías adicionales.
+entre predeterminada, Arial, Morpheus y Skurri) y **Color del número (RRGGBB)**.
+Ingresar seis dígitos y pulsar Aplicar o Enter. El color del número es independiente
+de la barra; por defecto es blanco. Se aplica tanto sobre el icono como al contador
+sin icono. Las fuentes son del cliente, sin descargas ni librerías adicionales.
 
 Por defecto: sin fondo ni etiqueta, con segmentos cuadrados de borde fino e interior
 oscuro. Los segmentos usan colores sólidos, sin estirar texturas decorativas.
@@ -52,7 +58,7 @@ alto/diámetro, grosor y color del borde, reflejo y color de los segmentos vací
 **Dorado → rojo por combos** cambia todos los puntos encendidos de dorado a rojo según el
 total de combos. Si WoW restringe el valor en combate, se usa un color fijo por
 posición (primero dorado, último rojo), sin inspeccionar valores secretos.
-Elegir un color de relleno desactiva la progresión y utiliza ese color fijo.
+Aplicar un color hexadecimal desactiva la progresión y utiliza ese color fijo.
 Tamaño, separación, opacidad y vista previa siguen disponibles en `/shardot`.
 
 `/shardot` abre el panel de configuración con casillas marcadas al activar una opción.
@@ -62,8 +68,8 @@ Se puede hacer clic en toda la fila, incluida su etiqueta. Incluye tres pestaña
   Al final aparece una fila discreta para apoyar el desarrollo por PayPal.
 - **Diseño:** forma, ancho, alto, separación, borde y reflejo; para brujo, icono,
   barra, objetivo y fuente del contador.
-- **Colores:** selector visual para relleno, vacío y borde; para brujo, barra y texto
-  independientes. La selección se aplica al momento y se puede cancelar para restaurar el color anterior.
+- **Colores:** muestras de color y campos hexadecimales para relleno, vacío y borde;
+  para brujo, barra y texto independientes. Aplicar con el botón o Enter.
 
 En **Apoyar el desarrollo / Support development**, pulsar **PayPal** para mostrar y seleccionar el enlace,
 copiarlo con Ctrl+C (Cmd+C en Mac) y abrirlo en el navegador:

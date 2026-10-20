@@ -180,108 +180,66 @@ function namespace.OpenOptions(api)
             end
         end
     end
-
-local function Color(parent, key, caption, x, y)
-    Text(parent, caption, x, y)
-
-    local swatch = CreateFrame("Button", nil, parent)
-    swatch:SetSize(30, 30)
-    swatch:SetPoint("TOPLEFT", x, y - 25)
-
-    Rect(swatch, 0.35, 0.38, 0.45)
-
-    local fill = swatch:CreateTexture(nil, "ARTWORK")
-    fill:SetPoint("TOPLEFT", 3, -3)
-    fill:SetPoint("BOTTOMRIGHT", -3, 3)
-
-    local function GetColor()
-        local value = api.db()[key]
-
-        if key == "color" then
-            local c = value or (api.warlock
-                and {0.68, 0.42, 1}
-                or {1, 0.72, 0.2})
-
-            return c[1], c[2], c[3]
-        end
-
-        return RGB(value or "FFFFFF")
-    end
-
-    local function OpenPicker()
-        local r, g, b = GetColor()
-
-        local db = api.db()
-        local previousValue = db[key]
-        local previousGradient = db.comboGradient
-
-        local function UpdateColor()
-            local nr, ng, nb = ColorPickerFrame:GetColorRGB()
-            local settings = api.db()
-
-            if key == "color" then
-                settings.color = {nr, ng, nb}
-
-                if not api.warlock then
-                    settings.comboGradient = false
-                end
-            else
-                settings[key] = string.format(
-                    "%02X%02X%02X",
-                    math.floor(nr * 255 + 0.5),
-                    math.floor(ng * 255 + 0.5),
-                    math.floor(nb * 255 + 0.5)
-                )
+    local function Color(parent, key, caption, x, y)
+        Text(parent, caption, x, y)
+        local swatch = CreateFrame("Frame", nil, parent)
+        swatch:SetSize(26, 26)
+        swatch:SetPoint("TOPLEFT", x, y - 25)
+        local fill = Rect(swatch, 1, 1, 1)
+        local input = CreateFrame("EditBox", nil, parent)
+        input:SetPoint("TOPLEFT", x + 38, y - 24)
+        input:SetSize(125, 30)
+        input:SetFont(STANDARD_TEXT_FONT, 13, "")
+        input:SetTextInsets(10, 4, 0, 0)
+        input:SetAutoFocus(false)
+        input:SetMaxLetters(6)
+        Rect(input, 0.10, 0.12, 0.14)
+        inputs[#inputs + 1] = input
+        input:SetScript("OnEscapePressed", function(self) self:ClearFocus(); panel:Refresh() end)
+        local function Apply()
+            local hex = input:GetText():upper()
+            if not hex:match("^%x%x%x%x%x%x$") then
+                input:SetTextColor(1, 0.3, 0.2)
+                return
             end
-
+            local db = api.db()
+            if key == "color" then
+                db.color = {RGB(hex)}
+                if not api.warlock then db.comboGradient = false end
+            else db[key] = hex end
+            input:ClearFocus()
             Commit()
         end
-
-        ColorPickerFrame:SetupColorPickerAndShow({
-            r = r,
-            g = g,
-            b = b,
-            hasOpacity = false,
-            swatchFunc = UpdateColor,
-
-            cancelFunc = function()
-                local settings = api.db()
-                settings[key] = previousValue
-                settings.comboGradient = previousGradient
-                Commit()
-            end,
-        })
+        input:SetScript("OnEnterPressed", Apply)
+        Button(parent, L("Aplicar", "Apply"), x + 178, y - 24, 92, Apply)
+        controls[#controls + 1] = function()
+            local hex = api.db()[key]
+            if key == "color" then
+                local c = hex or (api.warlock and {0.68, 0.42, 1} or {1, 0.72, 0.2})
+                hex = string.format("%02X%02X%02X", math.floor(c[1] * 255 + 0.5),
+                    math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+            end
+            if not input:HasFocus() then input:SetText(hex); input:SetTextColor(0.9, 0.93, 0.95) end
+            local r, g, b = RGB(hex)
+            fill:SetColorTexture(r, g, b, 1)
+        end
     end
-
-    swatch:SetScript("OnClick", OpenPicker)
-
-    Button(
-        parent,
-        L("Elegir color", "Choose color"),
-        x + 42,
-        y - 24,
-        228,
-        OpenPicker
-    )
-
-    controls[#controls + 1] = function()
-        local r, g, b = GetColor()
-        fill:SetColorTexture(r, g, b, 1)
-    end
-end
-
-    for i, name in ipairs({L("General", "General"), L("Diseño", "Design"), L("Colores", "Colors")}) do
+    local tabNames = {L("General", "General"), L("Diseño", "Design"), L("Colores", "Colors")}
+    if not api.warlock then tabNames[#tabNames + 1] = L("Nameplate", "Nameplate") end
+    local tabGap = 8
+    local tabWidth = (592 - (#tabNames - 1) * tabGap) / #tabNames
+    for i, name in ipairs(tabNames) do
         local index = i
         local page = CreateFrame("Frame", nil, panel)
         page:SetPoint("TOPLEFT", 24, -140)
         page:SetSize(592, 380)
         pages[index] = page
-        tabs[index] = Button(panel, name, 24 + (i - 1) * 200, -88, 192, function()
+        tabs[index] = Button(panel, name, 24 + (i - 1) * (tabWidth + tabGap), -88, tabWidth, function()
             selected = index
             panel:Refresh()
         end)
     end
-    local general, design, colors = pages[1], pages[2], pages[3]
+    local general, design, colors, nameplate = pages[1], pages[2], pages[3], pages[4]
     Text(general, L("Visibilidad y posición", "Visibility and position"), 0, 0, 16)
     Check(general, "locked", L("Bloquear posición", "Lock position"), 0, -38)
     Check(general, "hidezero", L("Ocultar en cero", "Hide at zero"), 310, -38)
@@ -323,12 +281,28 @@ end
         Check(colors, "comboGradient", L("Dorado → rojo por combos", "Gold → red with combos"), 310, -156)
         Text(colors, L("Aplicar un color de relleno desactiva la progresión a rojo.", "Applying a fill color disables the red progression."), 0, -232, 12, true)
     end
+    Text(colors, L("Usá seis dígitos hexadecimales; por ejemplo FFB733.", "Use six hex digits; for example FFB733."), 0, -278, 12, true)
     Button(colors, L("Colores originales", "Default colors"), 0, -317, 270, function()
         local db = api.db()
         db.color, db.emptyColor, db.borderColor, db.shardTextColor = nil, "252B2B", "111617", "FFFFFF"
         db.comboGradient = true
         Commit()
     end)
+    if nameplate then
+        Text(nameplate, L("Combo points en la nameplate", "Combo points on the nameplate"), 0, 0, 16)
+        Check(nameplate, "nameplateEnabled", L("Mostrar en el objetivo", "Show on target"), 0, -38)
+        Check(nameplate, "nameplateHideZero", L("Ocultar sin combo points", "Hide with no combo points"), 310, -38)
+        Choice(nameplate, "nameplatePosition", L("Posición respecto a la nameplate", "Position relative to nameplate"), {
+            {"TOP", L("Arriba", "Above")}, {"BOTTOM", L("Abajo", "Below")},
+        }, 0, -100)
+        Slider(nameplate, "nameplateScale", L("Escala", "Scale"), 0.5, 2, 0.05, 310, -100)
+        Slider(nameplate, "nameplateX", L("Movimiento X", "X offset"), -200, 200, 1, 0, -185)
+        Slider(nameplate, "nameplateY", L("Movimiento Y", "Y offset"), -100, 100, 1, 310, -185)
+        Text(nameplate, L("Usa el mismo estilo y colores configurados en Diseño y Colores.",
+            "Uses the same style and colors configured under Design and Colors."), 0, -270, 12, true)
+        Text(nameplate, L("Necesitás tener las nameplates activadas y un objetivo visible para verlo.",
+            "Nameplates must be enabled and the target must be visible."), 0, -296, 12, true)
+    end
     local support = CreateFrame("Frame", nil, general)
     support:SetPoint("TOPLEFT", 0, -320)
     support:SetSize(592, 60)

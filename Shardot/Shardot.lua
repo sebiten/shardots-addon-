@@ -5,6 +5,8 @@ local class, isWarlock, supported
 local preview = false
 local previewValue = 3
 local dots = {}
+local nameplateFrame, nameplateDots = nil, {}
+local nameplateLastValue, nameplateLastPlate
 local comboColors = {
     {1, 0.76, 0.24}, {1, 0.60, 0.12}, {1, 0.39, 0.07},
     {1, 0.20, 0.06}, {0.95, 0.06, 0.04},
@@ -29,6 +31,8 @@ local defaults = {
     shardTextColor = "FFFFFF", shardFont = 1,
     comboShape = "squares", dotWidth = 22, borderSize = 1,
     emptyColor = "252B2B", borderColor = "111617", shine = false,
+    nameplateEnabled = true, nameplatePosition = "TOP", nameplateX = 0, nameplateY = 0,
+    nameplateScale = 0.8, nameplateHideZero = true,
 }
 
 local function Print(message)
@@ -54,6 +58,12 @@ local function LoadSettings()
     db.dotGap = math.max(0, math.min(20, db.dotGap))
     db.dotWidth = math.max(10, math.min(60, db.dotWidth))
     db.borderSize = math.max(0, math.min(3, db.borderSize))
+    db.nameplateX = math.max(-200, math.min(200, db.nameplateX))
+    db.nameplateY = math.max(-100, math.min(100, db.nameplateY))
+    db.nameplateScale = math.max(0.5, math.min(2, db.nameplateScale))
+    if db.nameplatePosition ~= "TOP" and db.nameplatePosition ~= "BOTTOM" then
+        db.nameplatePosition = "TOP"
+    end
     if db.comboShape ~= "squares" and db.comboShape ~= "circles" then db.comboShape = "squares" end
     for _, key in ipairs({"emptyColor", "borderColor"}) do
         if not db[key]:match("^%x%x%x%x%x%x$") then db[key] = defaults[key] end
@@ -71,8 +81,76 @@ local function LoadSettings()
     end
 end
 
+local function CreateComboSegment(parent)
+    local dot = CreateFrame("StatusBar", nil, parent)
+    dot:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    local empty = dot:CreateTexture(nil, "BACKGROUND")
+    empty:SetAllPoints()
+    local mask = dot:CreateMaskTexture()
+    mask:SetAllPoints(dot)
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    dot.masks = {{empty, mask}, {dot:GetStatusBarTexture(), mask}}
+    dot.empty = empty
+    empty:SetDrawLayer("BACKGROUND", 3)
+    local function Shape(padding, offsetY, layer, r, g, b, a)
+        local texture = dot:CreateTexture(nil, "BACKGROUND", nil, layer)
+        texture:SetPoint("TOPLEFT", dot, "TOPLEFT", -padding, padding + offsetY)
+        texture:SetPoint("BOTTOMRIGHT", dot, "BOTTOMRIGHT", padding, -padding + offsetY)
+        texture:SetColorTexture(r, g, b, a)
+        local shapeMask = dot:CreateMaskTexture()
+        shapeMask:SetAllPoints(texture)
+        shapeMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        dot.masks[#dot.masks + 1] = {texture, shapeMask}
+        return texture
+    end
+    dot.rim = Shape(2, 0, 1, 0.34, 0.25, 0.13, 1)
+    dot.sheen = dot:CreateTexture(nil, "OVERLAY")
+    dot.sheen:SetPoint("TOPLEFT", dot, "TOPLEFT", 0, 0)
+    dot.sheen:SetPoint("BOTTOMRIGHT", dot, "RIGHT", 0, 0)
+    dot.sheen:SetColorTexture(1, 0.92, 0.75, 0.12)
+    dot.masks[#dot.masks + 1] = {dot.sheen, mask}
+    dot.round = false
+    return dot
+end
+
+local function StyleComboSegments(container, segments, centerY, resizeContainer)
+    local segmentWidth = db.comboShape == "circles" and db.dotSize or db.dotWidth
+    local border = db.metal and db.borderSize or 0
+    local r, g, b = 1, 0.72, 0.2
+    if db.color then r, g, b = unpack(db.color) end
+    if resizeContainer then
+        container:SetSize(5 * segmentWidth + 4 * db.dotGap + 8, db.dotSize + 8)
+    end
+    for i = 1, #segments do
+        local dot = segments[i]
+        dot:SetSize(segmentWidth - border * 2, db.dotSize - border * 2)
+        dot:ClearAllPoints()
+        dot:SetPoint("CENTER", container, "CENTER", (i - 3) * (segmentWidth + db.dotGap), centerY or 0)
+        dot:SetStatusBarColor(r, g, b)
+        dot.rim:SetShown(border > 0)
+        dot.rim:ClearAllPoints()
+        dot.rim:SetPoint("TOPLEFT", dot, "TOPLEFT", -border, border)
+        dot.rim:SetPoint("BOTTOMRIGHT", dot, "BOTTOMRIGHT", border, -border)
+        dot.sheen:SetShown(db.shine)
+        local function Tint(texture, hex)
+            texture:SetColorTexture(tonumber(hex:sub(1, 2), 16) / 255,
+                tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255, 1)
+        end
+        Tint(dot.empty, db.emptyColor)
+        Tint(dot.rim, db.borderColor)
+        local round = db.comboShape == "circles"
+        if dot.round ~= round then
+            for _, pair in ipairs(dot.masks) do
+                if round then pair[1]:AddMaskTexture(pair[2]) else pair[1]:RemoveMaskTexture(pair[2]) end
+            end
+            dot.round = round
+        end
+    end
+end
+
 local function ApplyStyle()
     lastValue, lastMaximum = nil, nil
+    nameplateLastValue, nameplateLastPlate = nil, nil
     local segmentWidth = db.comboShape == "circles" and db.dotSize or db.dotWidth
     local width = isWarlock and 156 or math.max(db.label and 156 or 0, 5 * segmentWidth + 4 * db.dotGap + 16)
     local height = isWarlock and 70 or math.max(70,
@@ -120,43 +198,81 @@ local function ApplyStyle()
         number:ClearAllPoints()
         number:SetPoint("BOTTOM", 0, 0)
     end
-    for i = 1, #dots do
-        local dot = dots[i]
-        local border = db.metal and db.borderSize or 0
-        dot:SetSize(segmentWidth - border * 2, db.dotSize - border * 2)
-        dot:ClearAllPoints()
-        dot:SetPoint("CENTER", frame, "CENTER", (i - 3) * (segmentWidth + db.dotGap),
-            db.comboNumber and 7 or (db.label and -5 or 0))
-        dot:SetStatusBarColor(r, g, b)
-        dot.rim:SetShown(border > 0)
-        dot.rim:ClearAllPoints()
-        dot.rim:SetPoint("TOPLEFT", dot, "TOPLEFT", -border, border)
-        dot.rim:SetPoint("BOTTOMRIGHT", dot, "BOTTOMRIGHT", border, -border)
-        dot.sheen:SetShown(db.shine)
-        local function Tint(texture, hex)
-            texture:SetColorTexture(tonumber(hex:sub(1, 2), 16) / 255,
-                tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255, 1)
+    StyleComboSegments(frame, dots, db.comboNumber and 7 or (db.label and -5 or 0), false)
+    if nameplateFrame then
+        nameplateFrame:SetScale(db.nameplateScale)
+        nameplateFrame:SetAlpha(db.alpha)
+        StyleComboSegments(nameplateFrame, nameplateDots, 0, true)
+    end
+end
+
+local function SetComboSegmentsValue(segments, value, secret)
+    for i = 1, #segments do
+        local dot = segments[i]
+        if db.comboGradient then
+            local colorIndex = i
+            if not secret then colorIndex = math.max(1, math.min(5, math.floor(value))) end
+            local color = comboColors[colorIndex]
+            dot:SetStatusBarColor(color[1], color[2], color[3])
         end
-        Tint(dot.empty, db.emptyColor)
-        Tint(dot.rim, db.borderColor)
-        local round = db.comboShape == "circles"
-        if dot.round ~= round then
-            for _, pair in ipairs(dot.masks) do
-                if round then pair[1]:AddMaskTexture(pair[2]) else pair[1]:RemoveMaskTexture(pair[2]) end
-            end
-            dot.round = round
-        end
+        dot:SetValue(value)
+    end
+end
+
+local function HideNameplateDisplay()
+    if nameplateFrame then nameplateFrame:Hide() end
+    nameplateLastPlate, nameplateLastValue = nil, nil
+end
+
+local function UpdateNameplateDisplay(value, secret)
+    if isWarlock or not db.nameplateEnabled or not C_NamePlate or not C_NamePlate.GetNamePlateForUnit then
+        HideNameplateDisplay()
+        return
+    end
+    if db.nameplateHideZero and not secret and value == 0 then
+        HideNameplateDisplay()
+        return
+    end
+    local plate = C_NamePlate.GetNamePlateForUnit("target")
+    if not plate or (plate.IsForbidden and plate:IsForbidden()) then
+        HideNameplateDisplay()
+        return
+    end
+    if nameplateLastPlate ~= plate then
+        nameplateFrame:SetParent(plate)
+        nameplateFrame:SetFrameLevel(plate:GetFrameLevel() + 20)
+        nameplateLastPlate = plate
+        nameplateLastValue = nil
+    end
+    nameplateFrame:ClearAllPoints()
+    if db.nameplatePosition == "BOTTOM" then
+        nameplateFrame:SetPoint("TOP", plate, "BOTTOM", db.nameplateX, -8 + db.nameplateY)
+    else
+        nameplateFrame:SetPoint("BOTTOM", plate, "TOP", db.nameplateX, 8 + db.nameplateY)
+    end
+    nameplateFrame:Show()
+    if secret or nameplateLastValue ~= value then
+        SetComboSegmentsValue(nameplateDots, value, secret)
+        if secret then nameplateLastValue = nil else nameplateLastValue = value end
     end
 end
 
 local function Update()
     if not frame then return end
-    if not supported and not preview and db.locked then frame:Hide(); return end
+    if not supported and not preview and db.locked then
+        frame:Hide()
+        HideNameplateDisplay()
+        return
+    end
 
     -- Druids only need combo points in cat form. A restricted value is not inspected.
     if class == "DRUID" and not preview and db.locked then
         local powerType = UnitPowerType("player")
-        if not isSecret(powerType) and powerType ~= 3 then frame:Hide(); return end
+        if not isSecret(powerType) and powerType ~= 3 then
+            frame:Hide()
+            HideNameplateDisplay()
+            return
+        end
     end
 
     local value, maximum
@@ -171,11 +287,12 @@ local function Update()
         maximum = 5
     end
 
-    if db.hidezero and db.locked and not preview and not isSecret(value) and value == 0 then
+    local secret = isSecret(value) or isSecret(maximum)
+    UpdateNameplateDisplay(value, secret)
+    if db.hidezero and db.locked and not preview and not secret and value == 0 then
         frame:Hide()
         return
     end
-    local secret = isSecret(value) or isSecret(maximum)
     if not secret and lastValue == value and lastMaximum == maximum and frame:IsShown() then return end
     if secret then lastValue, lastMaximum = nil, nil else lastValue, lastMaximum = value, maximum end
     frame:Show()
@@ -185,20 +302,10 @@ local function Update()
         bar:SetMinMaxValues(0, maximum)
         bar:SetValue(value)
     end
-    for i = 1, #dots do
-        -- Each native bar clamps the same value into its own one-point interval.
-        -- This also works without Lua arithmetic or comparisons on secret values.
-        local dot = dots[i]
-        if db.comboGradient then
-            local colorIndex = i
-            if not secret then colorIndex = math.max(1, math.min(5, math.floor(value))) end
-            local color = comboColors[colorIndex]
-            dot:SetStatusBarColor(color[1], color[2], color[3])
-            if db.comboNumber and (not secret or i == 1) then
-                number:SetTextColor(color[1], color[2], color[3])
-            end
-        end
-        dot:SetValue(value)
+    SetComboSegmentsValue(dots, value, secret)
+    if db.comboGradient and db.comboNumber and not secret then
+        local color = comboColors[math.max(1, math.min(5, math.floor(value)))]
+        number:SetTextColor(color[1], color[2], color[3])
     end
 end
 
@@ -246,37 +353,17 @@ local function CreateDisplay()
     track:SetColorTexture(1, 1, 1, 0.12)
     if not isWarlock then
         for i = 1, 5 do
-            local dot = CreateFrame("StatusBar", nil, frame)
+            local dot = CreateComboSegment(frame)
             dot:SetMinMaxValues(i - 1, i)
-            dot:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-            local empty = dot:CreateTexture(nil, "BACKGROUND")
-            empty:SetAllPoints()
-            empty:SetColorTexture(0.3, 0.3, 0.34, 0.85)
-            local mask = dot:CreateMaskTexture()
-            mask:SetAllPoints(dot)
-            mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-            dot.masks = {{empty, mask}, {dot:GetStatusBarTexture(), mask}}
-            dot.empty = empty
-            empty:SetDrawLayer("BACKGROUND", 3)
-            local function Circle(padding, offsetY, layer, r, g, b, a)
-                local texture = dot:CreateTexture(nil, "BACKGROUND", nil, layer)
-                texture:SetPoint("TOPLEFT", dot, "TOPLEFT", -padding, padding + offsetY)
-                texture:SetPoint("BOTTOMRIGHT", dot, "BOTTOMRIGHT", padding, -padding + offsetY)
-                texture:SetColorTexture(r, g, b, a)
-                local circleMask = dot:CreateMaskTexture()
-                circleMask:SetAllPoints(texture)
-                circleMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-                dot.masks[#dot.masks + 1] = {texture, circleMask}
-                return texture
-            end
-            dot.rim = Circle(2, 0, 1, 0.34, 0.25, 0.13, 1)
-            dot.sheen = dot:CreateTexture(nil, "OVERLAY")
-            dot.sheen:SetPoint("TOPLEFT", dot, "TOPLEFT", 0, 0)
-            dot.sheen:SetPoint("BOTTOMRIGHT", dot, "RIGHT", 0, 0)
-            dot.sheen:SetColorTexture(1, 0.92, 0.75, 0.12)
-            dot.masks[#dot.masks + 1] = {dot.sheen, mask}
-            dot.round = false
             dots[i] = dot
+        end
+        nameplateFrame = CreateFrame("Frame", "ShardotNameplateFrame", UIParent)
+        nameplateFrame:SetFrameStrata("HIGH")
+        nameplateFrame:Hide()
+        for i = 1, 5 do
+            local dot = CreateComboSegment(nameplateFrame)
+            dot:SetMinMaxValues(i - 1, i)
+            nameplateDots[i] = dot
         end
     end
     ApplyStyle()
@@ -379,6 +466,8 @@ events:SetScript("OnEvent", function(self, event, unit, power)
                 self:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
                 self:RegisterEvent("PLAYER_TARGET_CHANGED")
                 self:RegisterEvent("PLAYER_REGEN_ENABLED")
+                self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+                self:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
                 if class == "DRUID" then
                     self:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
                     self:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
